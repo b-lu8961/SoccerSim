@@ -3,7 +3,8 @@ Created on Jan 6, 2017
 
 @author: Bryan Lu
 '''
-import sqlite3, bs4, requests as r
+import sqlite3, requests as r
+from lxml import html
 
 db_name = 'soFifaStats.db'
 version_string = ''
@@ -16,8 +17,8 @@ def update_players(cursor):
 
 def main():
     res = r.get('http://sofifa.com')
-    soup = bs4.BeautifulSoup(res.text, 'html.parser')
-    new_version = soup.select('.choose-version')[0].getText()
+    tree = html.fromstring(res.content)
+    new_version = tree.xpath('//a[@class="choose-version"]/text()')[0]
     if version_string == new_version:
         print("Fifa stats up to date.")
     else:

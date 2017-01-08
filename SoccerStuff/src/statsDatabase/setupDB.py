@@ -1,6 +1,6 @@
 '''
 Created on Jan 6, 2017
-
+Module to setup the tables in the sqlite database.
 @author: Bryan Lu
 '''
 import sqlite3
@@ -36,6 +36,10 @@ def setup_team_table(cursor):
             cursor.execute('ALTER TABLE teams ADD COLUMN {} {}'.format(col_name, data_type))
         else:
             continue
+    
+    
+    def setup_player_table():
+        pass
     
 def main():
     conn = sqlite3.connect(db_name)
