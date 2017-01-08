@@ -3,7 +3,7 @@ Created on Jan 7, 2017
 Module to initialize the stats database with team and player info.
 @author: Bryan Lu
 '''
-import sqlite3, requests as r
+import queue, threading, sqlite3, requests as r
 from lxml import html
 
 db_name = 'soFifaStats.db'
@@ -123,22 +123,19 @@ def populate_teams(links, cursor):
 
     print(count)
 
-def get_player_list():
+def get_player_list(offset_num, thread_num):
     """Return a dictionary of player names and url extensions from sofifa.com."""
-    page_num = 1
-    next_page = True
     player_links = {}
-    offset = '/players'
+    offset = '/players?offset=' + str(offset_num)
     
-    while next_page:
+    for i in range(10):
         #Use requests to get html from the sofifa team list.
         res = r.get(base_url + offset)
         res.raise_for_status()
         tree = html.fromstring(res.content)
         
         #Keeping track of how many pages have been looked at.
-        print('Getting links for page ' + str(page_num) + ' of player list.')
-        page_num += 1
+        print('Getting player links for page ' + str(i + 1) + ' in thread ' + str(thread_num) + '.')
         
         #Selects the html tag that contains the url extension and adds it to the dictionary.
         team_tags = tree.xpath('//td[@class="nowrap"]/a')
@@ -151,17 +148,34 @@ def get_player_list():
         
         #Checking if there is a next page
         if next_link == '#':
-            next_page = False
+            break
         else:
             offset = next_link
-            next_page = True
         
-    #for k, v in team_links.items():
+    #for k, v in players_links.items():
     #    print("{}: {}".format(k, v))
-    #print('There are ' + str(len(team_links)) + ' teams in the list.')
+    #print('There are ' + str(len(player_links)) + ' players in the list.')
     #print()
     return player_links
 
+def start_pList_threads():
+    final_player_list = {}
+    que = queue.Queue()
+    threads = []
+    for i in range(18):
+        player_thread = threading.Thread(target=lambda q, offset, thread_num: q.put(get_player_list(offset, thread_num)), args=(que, i*1000, i))
+        threads.append(player_thread)
+        player_thread.start()
+        
+    for player_thread in threads:
+        player_thread.join()
+    print('Done.')
+    count = 0
+    while not que.empty():
+        result = que.get()
+        print(type(result), len(result))
+        count += len(result)
+    print(count)
 def populate_players(links, cursor):
     """Use sofifa.com/player/id# to add data to the stats database."""
     pass
@@ -169,16 +183,17 @@ def populate_players(links, cursor):
 def main():
     """Open connection with database and call methods to insert data."""
     
-    conn = sqlite3.connect(db_name)
-    c = conn.cursor()
+    #conn = sqlite3.connect(db_name)
+    #c = conn.cursor()
     
-    team_links = get_team_list()
-    populate_teams(team_links, c)
+    #team_links = get_team_list()
+    #populate_teams(team_links, c)
     
+    start_pList_threads()
     #player_links = get_player_list()
     #populate_players(player_links, c)
     #conn.commit()
-    conn.close()
+    #conn.close()
     
 
 if __name__ == '__main__':
