@@ -7,6 +7,7 @@ import queue, threading, sqlite3, requests as r
 from lxml import html
 from timeit import default_timer as timer
 
+"""tree.xpath('(//table[@class="table table-striped table-hover no-footer"])[1]//td[@class="nowrap"]/a')"""
 db_name = 'soFifaStats.db'
 base_url = 'http://sofifa.com'
 
@@ -126,28 +127,31 @@ def generate_sql(table_name, id_list):
         res.raise_for_status()
         tree = html.fromstring(res.content)
         
-        #Select the html header that contains the full team/player name.
-        #Header text has format NAME (ID: ####).
-        #Thus, header text is split at the '(' and the space is sliced off
-        header_string = tree.xpath('//h1/text()')[0]
-        info['name'] = header_string.split('(')[0][:-1]
-        
-        if table_name == 'players':
-            #Select the html element that has the player's position
-            position = tree.xpath('//div[@class="meta"]//span/text()')
-            info['position'] = str(position[1])
-        
-        #Select the html elements that contain the numeric stats.
-        stats = tree.xpath('//div[@class="stats"]//span/text()')
-        info['overall'] = int(stats[0])
-        
-        if table_name == 'teams':
-            info['attack'] = int(stats[1])
-            info['midfield'] = int(stats[2])
-            info['defence'] = int(stats[3])
-        
-        print('Complete.', count)
-        count += 1
+        if table_name == 'squads':
+            info = get_squad_info(tree, id_num)
+        else:
+            #Select the html header that contains the full team/player name.
+            #Header text has format NAME (ID: ####).
+            #Thus, header text is split at the '(' and the space is sliced off
+            header_string = tree.xpath('//h1/text()')[0]
+            info['name'] = header_string.split('(')[0][:-1]
+            
+            if table_name == 'players':
+                #Select the html element that has the player's position
+                position = tree.xpath('//div[@class="meta"]//span/text()')
+                info['position'] = str(position[1])
+            
+            #Select the html elements that contain the numeric stats.
+            stats = tree.xpath('//div[@class="stats"]//span/text()')
+            info['overall'] = int(stats[0])
+            
+            if table_name == 'teams':
+                info['attack'] = int(stats[1])
+                info['midfield'] = int(stats[2])
+                info['defence'] = int(stats[3])
+            
+            print('Complete.', count)
+            count += 1
         
         #Build the SQLite command that updates the database.
         sql_command = build_sql_command(table_name, info)
@@ -157,6 +161,26 @@ def generate_sql(table_name, id_list):
         
     return command_list
 
+def get_squad_info(tree, id_num):
+    squad_info = {}
+    ids = []
+    
+    for i in range(40):
+        key = 'player_' + str(i+1)
+        squad_info[key] = None
+
+    tag_list = tree.xpath('(//table[@class="table table-striped table-hover no-footer"])[1]//td[@class="nowrap"]/a')
+    for tag in tag_list:
+        ids.append(int(tag.get('href').split('/')[2]))
+        
+    for i in range(len(ids)):
+        key = 'player_' + str(i+1)
+        squad_info[key] = ids[i]
+    
+    squad_info['teamId'] = id_num
+    
+    return squad_info
+    
 def run_sql_threads(table_name, id_list):
     """Return a list of all SQLite commands for the team table."""
     command_list = []
@@ -166,7 +190,7 @@ def run_sql_threads(table_name, id_list):
     #Create a thread for every 600 players, every 30 teams
     if table_name == 'players':
         step = 600
-    elif table_name == 'teams':
+    elif table_name == 'teams' or table_name == 'squads':
         step = 30
     else:
         print('Bad input for table name.')
@@ -230,11 +254,12 @@ def main():
     conn = sqlite3.connect(db_name)
     c = conn.cursor()
     
-    #team_links = run_id_threads('team')
-    player_links = run_id_threads('player')
+    team_links = run_id_threads('team')
+    #player_links = run_id_threads('player')
     
+    squad_sql = run_sql_threads('squads', team_links)
     #team_sql = run_sql_threads('teams', team_links)
-    player_sql = run_sql_threads('players', player_links)
+    #player_sql = run_sql_threads('players', player_links)
     
     #for command in team_sql:
     #    c.execute(command)
