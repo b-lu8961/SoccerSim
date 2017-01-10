@@ -104,14 +104,14 @@ def generate_sql(table_name, id_list, thr_num):
         #Dictionary that holds data for the database.
         if table_name == 'players':
             info = {
-                'playerId': id_num, 
+                'playerId': int(id_num), 
                 'name': None, 
                 'position': None,
                 'overall': None
             }
         else:
             info = {
-                'teamId': id_num, 
+                'teamId': int(id_num), 
                 'name': None, 
                 'overall': None, 
                 'attack': None, 
@@ -127,7 +127,9 @@ def generate_sql(table_name, id_list, thr_num):
         
         #Select the html header that contains the full player/team name.
         header_string = tree.xpath('//h1/text()')[0]
-        info['name'] = header_string.split('(')[0][:-1]
+        name_string = str(header_string.split('(')[0][:-1])
+        name_string = name_string.replace("'", "''")
+        info['name'] = name_string
         
         if table_name == 'players':
             #Select the html element that has the player's position
@@ -175,10 +177,10 @@ def get_squad_info(tree, team_id):
     #Add player: playerId pairs to dictionary
     for i in range(len(player_ids)):
         key = 'player_' + str(i+1)
-        squad_info[key] = player_ids[i]
+        squad_info[key] = int(player_ids[i])
     
     #Associate squad with team
-    squad_info['teamId'] = team_id
+    squad_info['teamId'] = int(team_id)
     
     return squad_info
     
@@ -232,12 +234,12 @@ def main():
     
     #Get team and player ids
     team_ids = run_id_threads('team')
-    #player_ids = run_id_threads('player')
+    player_ids = run_id_threads('player')
     
     #Get SQLite commands for the ids
     sql_list = []
     sql_list.extend(run_sql_threads('teams', team_ids))
-    #sql_list.extend(run_sql_threads('players', player_ids))
+    sql_list.extend(run_sql_threads('players', player_ids))
     print('Number of sql commands generated: ' + str(len(sql_list)))
     
     #Execute the commands
@@ -248,7 +250,7 @@ def main():
             print(i, sql_list[i])
             sys.exit(0)
             
-        if i % 100 == 0:
+        if i % 1000 == 0:
             print('SQLite: ' + str(i))
     
     #Save changes and close connection
@@ -277,7 +279,6 @@ def build_sql_command(table_name, info):
     for i in range(len(val_list)):
         #Text values in SQLite need surrounding quotes
         if type(val_list[i]) == str:
-            data = val_list[i].replace("'", "''")
             data = "'" + val_list[i] + "'"
         else:
             data = str(val_list[i])
