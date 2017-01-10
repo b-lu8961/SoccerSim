@@ -3,7 +3,7 @@ Created on Jan 7, 2017
 Module to initialize the stats database with team and player info.
 @author: Bryan Lu
 '''
-import queue, threading, sqlite3, requests as r
+import queue, threading, sqlite3, sys, requests as r
 from lxml import html
 from timeit import default_timer as timer
 
@@ -232,20 +232,28 @@ def main():
     
     #Get team and player ids
     team_ids = run_id_threads('team')
-    player_ids = run_id_threads('player')
+    #player_ids = run_id_threads('player')
     
     #Get SQLite commands for the ids
     sql_list = []
     sql_list.extend(run_sql_threads('teams', team_ids))
-    sql_list.extend(run_sql_threads('players', player_ids))
+    #sql_list.extend(run_sql_threads('players', player_ids))
     print('Number of sql commands generated: ' + str(len(sql_list)))
     
     #Execute the commands
-    for command in sql_list:
-        c.execute(command)
+    for i in range(len(sql_list)):
+        try:
+            c.execute(sql_list[i])
+        except sqlite3.Error:
+            print(i, sql_list[i])
+            sys.exit(0)
+            
+        if i % 100 == 0:
+            print('SQLite: ' + str(i))
     
     #Save changes and close connection
     conn.commit()
+    print('Changes to database saved.')
     conn.close()
     
     end = timer()
@@ -269,6 +277,7 @@ def build_sql_command(table_name, info):
     for i in range(len(val_list)):
         #Text values in SQLite need surrounding quotes
         if type(val_list[i]) == str:
+            data = val_list[i].replace("'", "''")
             data = "'" + val_list[i] + "'"
         else:
             data = str(val_list[i])
